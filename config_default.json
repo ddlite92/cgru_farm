@@ -11,10 +11,10 @@
 	"":"'OS_macosx': MacOSX specific settings",
 
 	"":"Can be used globally for windows titles",
-	"-company":"CGRU-DEVEL",
+	"company":"Monsta Farm",
 
 	"":"Keeper system tray icon",
-	"-tray_icon":"cgru-devel",
+	"-tray_icon":"M",
 
 	"":"Path where custom icons will be searched",
 	"-icons_path":"/cg/icons;/local/icons",

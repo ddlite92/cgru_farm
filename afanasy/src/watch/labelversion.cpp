@@ -16,7 +16,7 @@ LabelVersion::LabelVersion(QWidget *parent):
 	setMinimumHeight(16);
 	setMaximumHeight(16);
 
-	m_label = QString("CGRU VERSION %1").arg(af::Environment::getVersionCGRU().c_str());
+	m_label = QString("Monsta Farm %1").arg(af::Environment::getVersionCGRU().c_str());
 	m_tooltip = m_label;
 	m_tooltip += QString("\nExecutable path: %1" ).arg(af::Environment::getExecutablePath().c_str());
 	m_tooltip += QString("\nBuild at %1"         ).arg(af::Environment::getBuildDate().c_str());

@@ -177,7 +177,7 @@ Dialog::~Dialog()
 
 void Dialog::repaintStart( int mseconds) { m_repaintTimer.start( mseconds);}
 void Dialog::repaintFinish()             { m_repaintTimer.stop();}
-void Dialog::setDefaultWindowTitle() { setWindowTitle( QString("Watch - ") + afqt::stoq( af::Environment::getUserName()) + "@" + afqt::stoq( af::Environment::getServerName()) );}
+void Dialog::setDefaultWindowTitle() { setWindowTitle( QString("Monsta Farm - ") + afqt::stoq( af::Environment::getUserName()) + "@" + afqt::stoq( af::Environment::getServerName()) );}
 void Dialog::sendRegister(){ m_qafclient.setUpMsg( MonitorHost::genRegisterMsg(), af::Environment::getWatchGetEventsSec());}
 void Dialog::sendMsg( af::Msg * msg)
 {
@@ -422,7 +422,7 @@ void Dialog::connectionLost()
 	}
 
     m_connected = false;
-    setWindowTitle( "Watch - " + afqt::stoq( af::Environment::getUserName()) + " (connecting...)");
+    setWindowTitle( "Monsta Farm - " + afqt::stoq( af::Environment::getUserName()) + " (connecting...)");
 
 	MonitorHost::connectionLost();
 
