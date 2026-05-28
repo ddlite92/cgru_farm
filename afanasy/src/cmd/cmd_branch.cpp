@@ -140,3 +140,101 @@ bool CmdJobSetBranch::v_processArguments(int argc, char** argv, af::Msg &msg)
 
 	return true;
 }
+
+// ─── block helpers ────────────────────────────────────────────────────────────
+
+static void buildBlockOperation(std::ostringstream & o_str,
+                                 const std::string & job_mask,
+                                 const std::string & block_mask,
+                                 const std::string & operation_type)
+{
+	af::jsonActionStart(o_str, "jobs", job_mask, std::vector<int>());
+	o_str << ",\n\"block_mask\":\"" << block_mask << '"';
+	o_str << ",\n\"operation\":{\"type\":\"" << operation_type << "\"}";
+	af::jsonActionFinish(o_str);
+}
+
+// ─── blkpause ────────────────────────────────────────────────────────────────
+
+CmdBlockPause::CmdBlockPause()
+{
+	setCmd("blkpause");
+	setArgsCount(2);
+	setInfo("Suspend (pause) blocks matching a mask inside jobs matching a mask.");
+	setHelp("blkpause [job_mask] [block_mask] Suspend matching blocks.");
+	setMsgType(af::Msg::TJSON);
+}
+CmdBlockPause::~CmdBlockPause() {}
+bool CmdBlockPause::v_processArguments(int argc, char** argv, af::Msg &msg)
+{
+	buildBlockOperation(m_str, argv[0], argv[1], "suspend");
+	return true;
+}
+
+// ─── blkstart ────────────────────────────────────────────────────────────────
+
+CmdBlockStart::CmdBlockStart()
+{
+	setCmd("blkstart");
+	setArgsCount(2);
+	setInfo("Continue (unpause) blocks matching a mask inside jobs matching a mask.");
+	setHelp("blkstart [job_mask] [block_mask] Continue (resume) matching blocks.");
+	setMsgType(af::Msg::TJSON);
+}
+CmdBlockStart::~CmdBlockStart() {}
+bool CmdBlockStart::v_processArguments(int argc, char** argv, af::Msg &msg)
+{
+	buildBlockOperation(m_str, argv[0], argv[1], "continue");
+	return true;
+}
+
+// ─── blkdone ─────────────────────────────────────────────────────────────────
+
+CmdBlockDone::CmdBlockDone()
+{
+	setCmd("blkdone");
+	setArgsCount(2);
+	setInfo("Mark all tasks in matching blocks as done.");
+	setHelp("blkdone [job_mask] [block_mask] Mark all tasks in matching blocks as done.");
+	setMsgType(af::Msg::TJSON);
+}
+CmdBlockDone::~CmdBlockDone() {}
+bool CmdBlockDone::v_processArguments(int argc, char** argv, af::Msg &msg)
+{
+	buildBlockOperation(m_str, argv[0], argv[1], "done");
+	return true;
+}
+
+// ─── blkskip ─────────────────────────────────────────────────────────────────
+
+CmdBlockSkip::CmdBlockSkip()
+{
+	setCmd("blkskip");
+	setArgsCount(2);
+	setInfo("Skip all tasks in matching blocks.");
+	setHelp("blkskip [job_mask] [block_mask] Skip all tasks in matching blocks.");
+	setMsgType(af::Msg::TJSON);
+}
+CmdBlockSkip::~CmdBlockSkip() {}
+bool CmdBlockSkip::v_processArguments(int argc, char** argv, af::Msg &msg)
+{
+	buildBlockOperation(m_str, argv[0], argv[1], "skip");
+	return true;
+}
+
+// ─── blkrestart ──────────────────────────────────────────────────────────────
+
+CmdBlockRestart::CmdBlockRestart()
+{
+	setCmd("blkrestart");
+	setArgsCount(2);
+	setInfo("Restart all tasks in matching blocks.");
+	setHelp("blkrestart [job_mask] [block_mask] Restart all tasks in matching blocks.");
+	setMsgType(af::Msg::TJSON);
+}
+CmdBlockRestart::~CmdBlockRestart() {}
+bool CmdBlockRestart::v_processArguments(int argc, char** argv, af::Msg &msg)
+{
+	buildBlockOperation(m_str, argv[0], argv[1], "restart");
+	return true;
+}

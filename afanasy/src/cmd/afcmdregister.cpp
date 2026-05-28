@@ -107,6 +107,12 @@ void AfCmd::RegisterCommands()
 	addCmd(new CmdJobsSetUser);
 	addCmd(new CmdJobSetBranch);
 
+	addCmd(new CmdBlockPause);
+	addCmd(new CmdBlockStart);
+	addCmd(new CmdBlockDone);
+	addCmd(new CmdBlockSkip);
+	addCmd(new CmdBlockRestart);
+
 	addCmd(new CmdTaskLog);
 	addCmd(new CmdTaskOutput);
 	addCmd(new CmdTaskRestart);

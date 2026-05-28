@@ -44,3 +44,33 @@ class CmdJobSetBranch : public Cmd { public:
 	~CmdJobSetBranch();
 	bool v_processArguments(int argc, char** argv, af::Msg &msg) final;
 };
+
+class CmdBlockPause : public Cmd { public:
+	CmdBlockPause();
+	~CmdBlockPause();
+	bool v_processArguments(int argc, char** argv, af::Msg &msg) final;
+};
+
+class CmdBlockStart : public Cmd { public:
+	CmdBlockStart();
+	~CmdBlockStart();
+	bool v_processArguments(int argc, char** argv, af::Msg &msg) final;
+};
+
+class CmdBlockDone : public Cmd { public:
+	CmdBlockDone();
+	~CmdBlockDone();
+	bool v_processArguments(int argc, char** argv, af::Msg &msg) final;
+};
+
+class CmdBlockSkip : public Cmd { public:
+	CmdBlockSkip();
+	~CmdBlockSkip();
+	bool v_processArguments(int argc, char** argv, af::Msg &msg) final;
+};
+
+class CmdBlockRestart : public Cmd { public:
+	CmdBlockRestart();
+	~CmdBlockRestart();
+	bool v_processArguments(int argc, char** argv, af::Msg &msg) final;
+};
