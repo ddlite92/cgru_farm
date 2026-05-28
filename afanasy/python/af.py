@@ -1345,3 +1345,158 @@ class Cmd:
         self.data['ids'] = [jobId]
         self.data['params'] = {'priority': priority}
         return self._sendRequest(verbose)
+
+
+class Branch:
+    """HTTP client for querying and manipulating Afanasy branches.
+
+    Branches are hierarchical path-based containers that group jobs and control
+    task throughput. Each method sends a single request to the running afserver
+    and returns the server response.
+
+    Example:
+        branch = af.Branch()
+        branches = branch.get_list()
+        branch.pause('/vfx/shots')
+        branch.move_jobs('shot_010_*', '/vfx/lighting')
+    """
+
+    def __init__(self):
+        """Initialise an empty request envelope."""
+        self._data = {}
+        self._action = None
+
+    def _send_request(self, verbose: bool = False):
+        """Build and dispatch the pending request to afserver.
+
+        Args:
+            verbose: Print request/response details when True.
+
+        Returns:
+            Parsed server response dict, or None on failure.
+        """
+        if self._action is None:
+            print('ERROR: Branch action not set.')
+            return None
+
+        payload = {self._action: self._data}
+        response = afnetwork.sendServer(__import__('json').dumps(payload), verbose, False)
+        self.__init__()
+        if response[0] is True:
+            return response[1]
+        return None
+
+    def get_list(self, verbose: bool = False) -> list:
+        """Return the list of all current branches from afserver.
+
+        Args:
+            verbose: Print request/response details when True.
+
+        Returns:
+            List of branch dicts, or None if the request failed.
+        """
+        self._action = 'get'
+        self._data['type'] = 'branches'
+        response = self._send_request(verbose)
+        if response is not None and 'branches' in response:
+            return response['branches']
+        return None
+
+    def _branch_operation(self, operation_type: str, branch_path: str, verbose: bool = False):
+        """Send a named operation to a branch identified by path.
+
+        Args:
+            operation_type: Server operation name (e.g. 'pause', 'start').
+            branch_path: Branch path, e.g. '/vfx/shots'.
+            verbose: Print request/response details when True.
+
+        Returns:
+            Server response dict, or None on failure.
+        """
+        if not branch_path:
+            raise ValueError('branch_path must not be empty')
+
+        self._action = 'action'
+        self._data['type'] = 'branches'
+        self._data['mask'] = branch_path
+        self._data['operation'] = {'type': operation_type}
+        return self._send_request(verbose)
+
+    def pause(self, branch_path: str, verbose: bool = False):
+        """Pause task solving for a branch.
+
+        Args:
+            branch_path: Branch path to pause, e.g. '/vfx/shots'.
+            verbose: Print request/response details when True.
+
+        Returns:
+            Server response dict, or None on failure.
+        """
+        return self._branch_operation('pause', branch_path, verbose)
+
+    def start(self, branch_path: str, verbose: bool = False):
+        """Resume (unpause) task solving for a branch.
+
+        Args:
+            branch_path: Branch path to resume, e.g. '/vfx/shots'.
+            verbose: Print request/response details when True.
+
+        Returns:
+            Server response dict, or None on failure.
+        """
+        return self._branch_operation('start', branch_path, verbose)
+
+    def delete(self, branch_path: str, verbose: bool = False):
+        """Delete an empty branch.
+
+        Branch must have no child branches and no jobs. The server will reject
+        requests to delete non-empty or root branches.
+
+        Args:
+            branch_path: Branch path to delete, e.g. '/vfx/shots'.
+            verbose: Print request/response details when True.
+
+        Returns:
+            Server response dict, or None on failure.
+        """
+        return self._branch_operation('delete', branch_path, verbose)
+
+    def delete_done_jobs(self, branch_path: str, verbose: bool = False):
+        """Remove all done jobs from a branch.
+
+        Args:
+            branch_path: Branch path whose done jobs should be removed.
+            verbose: Print request/response details when True.
+
+        Returns:
+            Server response dict, or None on failure.
+        """
+        return self._branch_operation('delete_done_jobs', branch_path, verbose)
+
+    def move_jobs(self, job_mask: str, target_branch_path: str, verbose: bool = False):
+        """Move all jobs matching a mask to a different branch.
+
+        The target branch must already exist on the server. Job matching uses
+        the same regex mask rules as other afcmd/API job operations.
+
+        Args:
+            job_mask: Regex mask matching the job name(s) to move.
+            target_branch_path: Destination branch path, e.g. '/vfx/lighting'.
+            verbose: Print request/response details when True.
+
+        Raises:
+            ValueError: If job_mask or target_branch_path is empty.
+
+        Returns:
+            Server response dict, or None on failure.
+        """
+        if not job_mask:
+            raise ValueError('job_mask must not be empty')
+        if not target_branch_path:
+            raise ValueError('target_branch_path must not be empty')
+
+        self._action = 'action'
+        self._data['type'] = 'jobs'
+        self._data['mask'] = job_mask
+        self._data['params'] = {'branch': target_branch_path}
+        return self._send_request(verbose)

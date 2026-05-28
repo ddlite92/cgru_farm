@@ -23,6 +23,7 @@
 #include "cmd_user.h"
 #include "cmd_monitor.h"
 
+#include "cmd_branch.h"
 #include "cmd_job.h"
 #include "cmd_task.h"
 
@@ -56,6 +57,13 @@ void AfCmd::RegisterCommands()
 	addCmd(new CmdPoolUnpause);
 	addCmd(new CmdPoolServiceAdd);
 	addCmd(new CmdPoolServiceDel);
+
+	addCmd(new CmdBranchList);
+	addCmd(new CmdBranchPause);
+	addCmd(new CmdBranchStart);
+	addCmd(new CmdBranchDelete);
+	addCmd(new CmdBranchDeleteDone);
+	addCmd(new CmdBranchLog);
 
 	addCmd(new CmdRenderList);
 	addCmd(new CmdRenderPriority);
@@ -97,6 +105,7 @@ void AfCmd::RegisterCommands()
 	addCmd(new CmdJobRunningTasksMaximum);
 	addCmd(new CmdJobHostsMask);
 	addCmd(new CmdJobsSetUser);
+	addCmd(new CmdJobSetBranch);
 
 	addCmd(new CmdTaskLog);
 	addCmd(new CmdTaskOutput);
