@@ -90,6 +90,39 @@ class Block:
     def skip(self, taskIds=[]):
         self.setState(self.State.skip, taskIds=taskIds)
 
+    def pause(self, verbose=False):
+        """Suspend all tasks in this block.
+
+        Args:
+            verbose: If True, print the server response.
+
+        Returns:
+            Server response string.
+        """
+        return self.setState('suspend', verbose=verbose)
+
+    def start(self, verbose=False):
+        """Resume (continue) all tasks in this block.
+
+        Args:
+            verbose: If True, print the server response.
+
+        Returns:
+            Server response string.
+        """
+        return self.setState('continue', verbose=verbose)
+
+    def done(self, verbose=False):
+        """Mark all tasks in this block as done.
+
+        Args:
+            verbose: If True, print the server response.
+
+        Returns:
+            Server response string.
+        """
+        return self.setState('done', verbose=verbose)
+
     def isNumeric(self):
         return bool(afcommon.checkBlockFlag(self.flags, 'numeric'))
 
