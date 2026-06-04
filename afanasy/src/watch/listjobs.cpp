@@ -20,8 +20,14 @@
 #include <QtCore/QTimer>
 #include <QtGui/QContextMenuEvent>
 #include <QBoxLayout>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFormLayout>
 #include <QInputDialog>
+#include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
+#include <QSpinBox>
 #include <QMessageBox>
 #include <QSplitter>
 
@@ -334,6 +340,17 @@ void ListJobs::contextMenuEvent( QContextMenuEvent *event)
 	connect( action, SIGNAL( triggered() ), this, SLOT( actRestartErrors() ));
 	if( selectedItemsCount == 1) action->setEnabled( jobitem->state & AFJOB::STATE_ERROR_MASK);
 	menu.addAction( action);
+
+	if( selectedItemsCount == 1)
+	{
+		const BlockInfo * binfo = jobitem->getBlockInfo(0);
+		if( binfo && binfo->numeric)
+		{
+			action = new QAction("Submit New Frame Range...", this);
+			connect( action, SIGNAL( triggered()), this, SLOT( actRenderNewFrameRange()));
+			menu.addAction( action);
+		}
+	}
 
 	menu.addSeparator();
 
@@ -940,5 +957,262 @@ bool ListJobs::v_filesReceived( const af::MCTaskUp & i_taskup )
 	}
 
 	return false;
+}
+
+/// Find "[fN-M]" in @p name and replace with "[f@p first-@p last]".
+/// If the tag is absent, append it. No regex — plain char scan.
+static QString replaceFrameRangeTag(
+	const QString & name, long long first_frame, long long last_frame)
+{
+	const QString new_tag = QString("[f%1-%2]").arg(first_frame).arg(last_frame);
+	const int prefix_pos = name.indexOf("[f");
+	if( prefix_pos == -1)
+		return name + new_tag;
+
+	const int dash_pos = name.indexOf('-', prefix_pos + 2);
+	if( dash_pos == -1)
+		return name + new_tag;
+
+	const int close_pos = name.indexOf(']', dash_pos + 1);
+	if( close_pos == -1)
+		return name + new_tag;
+
+	// Validate that the sub-strings between the delimiters are numeric.
+	const QString digits_before_dash = name.mid(prefix_pos + 2, dash_pos - prefix_pos - 2);
+	const QString digits_after_dash  = name.mid(dash_pos + 1, close_pos - dash_pos - 1);
+	bool before_ok = false;
+	bool after_ok  = false;
+	digits_before_dash.toLongLong(&before_ok);
+	digits_after_dash.toLongLong(&after_ok);
+
+	if( false == before_ok || false == after_ok)
+		return name + new_tag;
+
+	QString result = name;
+	result.replace(prefix_pos, close_pos - prefix_pos + 1, new_tag);
+	return result;
+}
+
+void ListJobs::actRenderNewFrameRange()
+{
+	ItemJob * job = (ItemJob*)getCurrentItem();
+	if( job == NULL)
+		return;
+
+	// Locate the first numeric block to pre-fill the dialog.
+	const BlockInfo * first_numeric_block = NULL;
+	for( int b = 0; b < job->getBlocksNum(); b++)
+	{
+		const BlockInfo * binfo = job->getBlockInfo(b);
+		if( binfo && binfo->numeric)
+		{
+			first_numeric_block = binfo;
+			break;
+		}
+	}
+	if( first_numeric_block == NULL)
+		return;
+
+	// Derive a default job name by replacing the existing [fN-M] frame range tag.
+	// Uses plain string search so QRegExp is not required.
+	QString original_job_name = job->getName();
+	QString derived_job_name = replaceFrameRangeTag(
+		original_job_name,
+		first_numeric_block->frame_first,
+		first_numeric_block->frame_last);
+
+	// ── Dialog ────────────────────────────────────────────────────────────
+	QDialog dialog(this);
+	dialog.setWindowTitle("Submit New Frame Range");
+
+	QSpinBox * spin_first = new QSpinBox(&dialog);
+	spin_first->setRange(0, 9999999);
+	spin_first->setValue( int(first_numeric_block->frame_first));
+
+	QSpinBox * spin_last = new QSpinBox(&dialog);
+	spin_last->setRange(0, 9999999);
+	spin_last->setValue( int(first_numeric_block->frame_last));
+
+	QLineEdit * edit_name = new QLineEdit(derived_job_name, &dialog);
+
+	QFormLayout * form = new QFormLayout;
+	form->addRow("First Frame:", spin_first);
+	form->addRow("Last Frame:",  spin_last);
+	form->addRow("Job Name:",    edit_name);
+
+	QDialogButtonBox * buttons = new QDialogButtonBox(
+		QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+	connect( buttons, SIGNAL( accepted()), &dialog, SLOT( accept()));
+	connect( buttons, SIGNAL( rejected()), &dialog, SLOT( reject()));
+
+	QVBoxLayout * layout = new QVBoxLayout(&dialog);
+	layout->addLayout(form);
+	layout->addWidget(buttons);
+
+	if( dialog.exec() != QDialog::Accepted)
+		return;
+
+	const int new_first_frame = spin_first->value();
+	const int new_last_frame  = spin_last->value();
+	const QString new_job_name = edit_name->text().trimmed();
+
+	if( new_last_frame < new_first_frame)
+	{
+		displayError("Last frame must be >= first frame.");
+		return;
+	}
+	if( new_job_name.isEmpty())
+	{
+		displayError("Job name must not be empty.");
+		return;
+	}
+
+	// Update the name tag to reflect the actual values the user confirmed.
+	QString final_job_name = replaceFrameRangeTag(
+		new_job_name, new_first_frame, new_last_frame);
+
+	// ── Build job registration JSON ────────────────────────────────────────
+	std::ostringstream str;
+	str << "{\"job\":{";
+	str << "\"name\":\""      << af::strEscape( afqt::qtos( final_job_name))  << "\"";
+	str << ",\"user_name\":\"" << af::strEscape( af::Environment::getUserName()) << "\"";
+	str << ",\"host_name\":\"" << af::strEscape( af::Environment::getHostName()) << "\"";
+
+	if( false == job->description.isEmpty())
+		str << ",\"description\":\"" << af::strEscape( afqt::qtos( job->description)) << "\"";
+	if( false == job->project.isEmpty())
+		str << ",\"project\":\"" << af::strEscape( afqt::qtos( job->project)) << "\"";
+	if( false == job->department.isEmpty())
+		str << ",\"department\":\"" << af::strEscape( afqt::qtos( job->department)) << "\"";
+	if( false == job->cmd_pre.isEmpty())
+		str << ",\"command_pre\":\"" << af::strEscape( afqt::qtos( job->cmd_pre)) << "\"";
+	if( false == job->cmd_post.isEmpty())
+		str << ",\"command_post\":\"" << af::strEscape( afqt::qtos( job->cmd_post)) << "\"";
+
+	str << ",\"blocks\":[";
+
+	for( int b = 0; b < job->getBlocksNum(); b++)
+	{
+		const BlockInfo * binfo = job->getBlockInfo(b);
+		if( binfo == NULL)
+			continue;
+
+		if( b > 0)
+			str << ",";
+
+		const long long block_frame_first = binfo->numeric ? new_first_frame : binfo->frame_first;
+		const long long block_frame_last  = binfo->numeric ? new_last_frame  : binfo->frame_last;
+
+		str << "{";
+		str << "\"name\":\""    << af::strEscape( afqt::qtos( binfo->getName()))   << "\"";
+		str << ",\"service\":\"" << af::strEscape( afqt::qtos( binfo->service))    << "\"";
+		str << ",\"command\":\"" << af::strEscape( afqt::qtos( binfo->cmd))        << "\"";
+		str << ",\"parser\":\""  << af::strEscape( afqt::qtos( binfo->parser))     << "\"";
+
+		if( false == binfo->wdir.isEmpty())
+			str << ",\"working_directory\":\""
+			    << af::strEscape( afqt::qtos( binfo->wdir)) << "\"";
+
+		if( binfo->numeric)
+		{
+			str << ",\"frame_first\":"    << block_frame_first;
+			str << ",\"frame_last\":"     << block_frame_last;
+			str << ",\"frames_per_task\":" << binfo->frame_pertask;
+			str << ",\"frames_inc\":"     << binfo->frame_inc;
+		}
+
+		str << ",\"sequential\":"          << binfo->sequential;
+
+		if( binfo->capacity          > 0) str << ",\"capacity\":"           << binfo->capacity;
+		if( binfo->need_gpu_mem_mb   > 0) str << ",\"need_gpu_mem_mb\":"    << binfo->need_gpu_mem_mb;
+		if( binfo->task_max_run_time > 0) str << ",\"task_max_run_time\":"  << binfo->task_max_run_time;
+		if( binfo->task_min_run_time > 0) str << ",\"task_min_run_time\":"  << binfo->task_min_run_time;
+		if( binfo->task_progress_change_timeout > 0)
+			str << ",\"task_progress_change_timeout\":" << binfo->task_progress_change_timeout;
+		if( binfo->errors_retries        != 0) str << ",\"errors_retries\":"         << binfo->errors_retries;
+		if( binfo->errors_avoid_host     != 0) str << ",\"errors_avoid_host\":"      << binfo->errors_avoid_host;
+		if( binfo->errors_task_same_host != 0) str << ",\"errors_task_same_host\":"  << binfo->errors_task_same_host;
+		if( binfo->errors_forgive_time   > 0)  str << ",\"errors_forgive_time\":"    << binfo->errors_forgive_time;
+		if( binfo->max_running_tasks        > 0) str << ",\"max_running_tasks\":"         << binfo->max_running_tasks;
+		if( binfo->max_running_tasks_per_host > 0) str << ",\"max_running_tasks_per_host\":" << binfo->max_running_tasks_per_host;
+		if( binfo->need_memory       > 0) str << ",\"need_memory\":"       << binfo->need_memory;
+		if( binfo->need_cpu_freq_mgz > 0) str << ",\"need_cpu_freq_mgz\":" << binfo->need_cpu_freq_mgz;
+		if( binfo->need_cpu_cores    > 0) str << ",\"need_cpu_cores\":"    << binfo->need_cpu_cores;
+		if( binfo->need_hdd          > 0) str << ",\"need_hdd\":"          << binfo->need_hdd;
+		if( binfo->need_power        > 0) str << ",\"need_power\":"        << binfo->need_power;
+
+		if( false == binfo->hosts_mask.isEmpty())
+			str << ",\"hosts_mask\":\""
+			    << af::strEscape( afqt::qtos( binfo->hosts_mask)) << "\"";
+		if( false == binfo->hosts_mask_exclude.isEmpty())
+			str << ",\"hosts_mask_exclude\":\""
+			    << af::strEscape( afqt::qtos( binfo->hosts_mask_exclude)) << "\"";
+		if( false == binfo->need_properties.isEmpty())
+			str << ",\"need_properties\":\""
+			    << af::strEscape( afqt::qtos( binfo->need_properties)) << "\"";
+		if( false == binfo->depend_mask.isEmpty())
+			str << ",\"depend_mask\":\""
+			    << af::strEscape( afqt::qtos( binfo->depend_mask)) << "\"";
+		if( false == binfo->tasks_depend_mask.isEmpty())
+			str << ",\"tasks_depend_mask\":\""
+			    << af::strEscape( afqt::qtos( binfo->tasks_depend_mask)) << "\"";
+
+		if( false == binfo->cmdpre.isEmpty())
+			str << ",\"command_pre\":\""
+			    << af::strEscape( afqt::qtos( binfo->cmdpre)) << "\"";
+		if( false == binfo->cmdpost.isEmpty())
+			str << ",\"command_post\":\""
+			    << af::strEscape( afqt::qtos( binfo->cmdpost)) << "\"";
+
+		// Output files array.
+		if( false == binfo->files.empty())
+		{
+			str << ",\"files\":[";
+			for( size_t f = 0; f < binfo->files.size(); f++)
+			{
+				if( f > 0) str << ",";
+				str << "\"" << af::strEscape( binfo->files[f]) << "\"";
+			}
+			str << "]";
+		}
+
+		// Environment key-value object.
+		QMap<QString, QVariant> env_map =
+			binfo->getParamsVars().value("environment").toMap();
+		if( false == env_map.isEmpty())
+		{
+			str << ",\"environment\":{";
+			bool first_env_var = true;
+			for( auto it = env_map.constBegin(); it != env_map.constEnd(); ++it)
+			{
+				if( false == first_env_var) str << ",";
+				first_env_var = false;
+				str << "\"" << af::strEscape( afqt::qtos( it.key()))          << "\":"
+				    << "\"" << af::strEscape( afqt::qtos( it.value().toString())) << "\"";
+			}
+			str << "}";
+		}
+
+		// Tickets object.
+		if( false == binfo->tickets.isEmpty())
+		{
+			str << ",\"tickets\":{";
+			bool first_ticket = true;
+			for( auto it = binfo->tickets.constBegin(); it != binfo->tickets.constEnd(); ++it)
+			{
+				if( false == first_ticket) str << ",";
+				first_ticket = false;
+				str << "\"" << af::strEscape( afqt::qtos( it.key())) << "\":"
+				    << it.value();
+			}
+			str << "}";
+		}
+
+		str << "}"; // end block
+	}
+
+	str << "]}}"; // end blocks, job, root
+
+	Watch::sendMsg( af::jsonMsg( str));
 }
 

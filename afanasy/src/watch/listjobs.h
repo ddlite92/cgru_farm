@@ -74,6 +74,8 @@ private slots:
 	void actRequestLog();
 	void actRequestErrorHostsList();
 
+	void actRenderNewFrameRange();
+
 	void actListenJob();
 
 	void actBrowseFolder( QString i_folder);

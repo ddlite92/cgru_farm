@@ -128,6 +128,13 @@ public:
 
 	QMap<QString, int> tickets;
 
+	QString cmd;
+	QString wdir;
+	QString parser;
+	QString cmdpre;
+	QString cmdpost;
+	std::vector<std::string> files;
+
 signals:
 	void sig_BlockAction(int, QString);
 

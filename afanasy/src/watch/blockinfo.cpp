@@ -112,6 +112,12 @@ bool BlockInfo::update( const af::BlockData* block, int type)
 		frame_inc                    = block->getFrameInc();
 
 		service                      = afqt::stoq( block->getService());
+		cmd                          = afqt::stoq( block->getCmd());
+		wdir                         = afqt::stoq( block->getWDir());
+		parser                       = afqt::stoq( block->getParser());
+		cmdpre                       = afqt::stoq( block->getCmdPre());
+		cmdpost                      = afqt::stoq( block->getCmdPost());
+		files                        = block->getFiles();
 		multihost                    = block->isMultiHost();
 		multihost_samemaster         = block->canMasterRunOnSlaveHost();
 		varcapacity                  = block->canVarCapacity();
