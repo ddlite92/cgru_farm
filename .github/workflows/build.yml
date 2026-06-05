@@ -197,3 +197,19 @@ jobs:
       - name: Run CTest
         shell: pwsh
         run: ctest --test-dir afanasy/src/project.cmake/build-win -C Release --output-on-failure
+
+      - name: Locate afwatch.exe
+        shell: pwsh
+        run: |
+          $bin = Get-ChildItem -Path afanasy\bin -Recurse -Filter afwatch.exe |
+                 Select-Object -First 1
+          if (-not $bin) { throw "afwatch.exe not found under afanasy\bin" }
+          Write-Host "Found: $($bin.FullName)"
+          "AFWATCH_EXE=$($bin.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Upload Windows binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: afwatch-windows-x64
+          path: ${{ env.AFWATCH_EXE }}
+          if-no-files-found: error
