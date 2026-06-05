@@ -599,6 +599,10 @@ bool ListJobs::v_caseMessage( af::Msg * msg)
 		break;
 	}
 
+	case af::Msg::TJob:
+		updateItems(msg, Item::TJob);
+		break;
+
 	default:
 		return false;
 	}
@@ -1012,6 +1016,17 @@ void ListJobs::actRenderNewFrameRange()
 	}
 	if( first_numeric_block == NULL)
 		return;
+
+	// Block command data is absent in TJobsList responses — request full data and retry.
+	if( first_numeric_block->cmd.isEmpty())
+	{
+		std::ostringstream full_job_request;
+		full_job_request << "{\"get\":{\"type\":\"jobs\",\"mode\":\"full\",\"binary\":true"
+		                 << ",\"ids\":[" << job->getId() << "]}}";
+		Watch::sendMsg( af::jsonMsg( full_job_request));
+		displayError("Block command data not yet loaded.\nPlease try again in a moment.");
+		return;
+	}
 
 	// Derive a default job name by replacing the existing [fN-M] frame range tag.
 	// Uses plain string search so QRegExp is not required.
