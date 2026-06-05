@@ -188,7 +188,9 @@ jobs:
             -DCMAKE_PREFIX_PATH="$env:QT_ROOT;$vcpkgInstalled" `
             -DQt5_DIR="$qtConfigDir" `
             -DPostgreSQL_INCLUDE_DIR="$env:PG_ROOT\include" `
-            -DPostgreSQL_LIBRARY="$env:PG_ROOT\lib\libpq.lib"
+            -DPostgreSQL_LIBRARY="$env:PG_ROOT\lib\libpq.lib" `
+            -DCMAKE_RUNTIME_OUTPUT_DIRECTORY="$env:GITHUB_WORKSPACE\artifacts\bin" `
+            -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE="$env:GITHUB_WORKSPACE\artifacts\bin"
 
       - name: Build
         shell: pwsh
@@ -198,20 +200,9 @@ jobs:
         shell: pwsh
         run: ctest --test-dir afanasy/src/project.cmake/build-win -C Release --output-on-failure
 
-      - name: Find afwatch.exe (debug)
-        shell: pwsh
-        run: |
-          Write-Host "=== Searching entire workspace for afwatch.exe ==="
-          Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter "afwatch.exe" -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty FullName
-          Write-Host "=== All .exe files under afanasy/ ==="
-          Get-ChildItem -Path afanasy -Recurse -Filter "*.exe" -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty FullName
-          Write-Host "=== Done ==="
-
       - name: Upload Windows binaries
         uses: actions/upload-artifact@v4
         with:
           name: afwatch-windows-x64
-          path: afanasy/windows/bin/afwatch.exe
-          if-no-files-found: warn
+          path: artifacts/bin/afwatch.exe
+          if-no-files-found: error
