@@ -105,6 +105,7 @@ bool BlockInfo::update( const af::BlockData* block, int type)
 
 		tasksnum                     = block->getTasksNum();
 		numeric                      = block->isNumeric();
+		flags                        = block->getFlags();
 
 		frame_first                  = block->getFrameFirst();
 		frame_last                   = block->getFrameLast();

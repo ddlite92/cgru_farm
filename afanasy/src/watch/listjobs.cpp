@@ -1105,6 +1105,8 @@ void ListJobs::actRenderNewFrameRange()
 
 		str << "{";
 		str << "\"name\":\""    << af::strEscape( afqt::qtos( binfo->getName()))   << "\"";
+		// Flags carry the numeric bit (bit 0). Must be sent so the server calls setNumeric().
+		str << ",\"flags\":"    << binfo->flags; // block type flags: numeric bit, varcapacity, multihost, etc.
 		str << ",\"service\":\"" << af::strEscape( afqt::qtos( binfo->service))    << "\"";
 		str << ",\"command\":\"" << af::strEscape( afqt::qtos( binfo->cmd))        << "\"";
 		str << ",\"parser\":\""  << af::strEscape( afqt::qtos( binfo->parser))     << "\"";

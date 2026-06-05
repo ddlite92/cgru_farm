@@ -59,6 +59,7 @@ public:
 
 //private:
 	uint32_t state;
+	uint32_t flags; ///< Block type flags (numeric bit, varcapacity, multihost, etc.)
 
 
 	QString service;
