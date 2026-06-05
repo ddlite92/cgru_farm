@@ -157,9 +157,10 @@ jobs:
           key: ${{ steps.cache-vcpkg.outputs.cache-primary-key }}
 
       - name: Configure
+        working-directory: afanasy/src/project.cmake
         shell: pwsh
         run: |
-          $env:CGRU_VERSION = (Get-Content version.txt -Raw).Trim()
+          $env:CGRU_VERSION = (Get-Content ../../../version.txt -Raw).Trim()
           $env:CGRU_REVISION = (git rev-parse HEAD).Trim()
           $env:AF_POSTGRESQL = "REQUIRED"
           $env:AF_OSTYPE = "windows"
@@ -175,9 +176,7 @@ jobs:
             throw "Qt5Config.cmake not found at '$qtConfigDir'."
           }
 
-          cmake `
-            -S afanasy/src/project.cmake `
-            -B afanasy/src/project.cmake/build-win `
+          cmake . `
             -G "Visual Studio 17 2022" `
             -A x64 `
             -T v142 `
@@ -188,21 +187,21 @@ jobs:
             -DCMAKE_PREFIX_PATH="$env:QT_ROOT;$vcpkgInstalled" `
             -DQt5_DIR="$qtConfigDir" `
             -DPostgreSQL_INCLUDE_DIR="$env:PG_ROOT\include" `
-            -DPostgreSQL_LIBRARY="$env:PG_ROOT\lib\libpq.lib" `
-            -DCMAKE_RUNTIME_OUTPUT_DIRECTORY="$env:GITHUB_WORKSPACE\artifacts\bin" `
-            -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE="$env:GITHUB_WORKSPACE\artifacts\bin"
+            -DPostgreSQL_LIBRARY="$env:PG_ROOT\lib\libpq.lib"
 
-      - name: Build
+      - name: Build afwatch
+        working-directory: afanasy/src/project.cmake
         shell: pwsh
-        run: cmake --build afanasy/src/project.cmake/build-win --config Release -- /m
+        run: cmake --build . --config Release --target afwatch -- /m
 
       - name: Run CTest
+        working-directory: afanasy/src/project.cmake
         shell: pwsh
-        run: ctest --test-dir afanasy/src/project.cmake/build-win -C Release --output-on-failure
+        run: ctest --test-dir . -C Release --output-on-failure
 
       - name: Upload Windows binaries
         uses: actions/upload-artifact@v4
         with:
           name: afwatch-windows-x64
-          path: artifacts/bin/afwatch.exe
+          path: windows/bin/afwatch.exe
           if-no-files-found: error
