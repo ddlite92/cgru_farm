@@ -198,9 +198,23 @@ jobs:
         shell: pwsh
         run: ctest --test-dir afanasy/src/project.cmake/build-win -C Release --output-on-failure
 
+      - name: Find afwatch.exe
+        shell: pwsh
+        run: |
+          $hits = Get-ChildItem -Path . -Recurse -Filter afwatch.exe -ErrorAction SilentlyContinue
+          if ($hits) {
+            $hits | ForEach-Object { Write-Host $_.FullName }
+            "AFWATCH_EXE=$($hits[0].FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+            Write-Host "afwatch.exe not found — listing afanasy/bin and build-win trees:"
+            Get-ChildItem -Path afanasy\bin          -Recurse -ErrorAction SilentlyContinue | Select-Object FullName
+            Get-ChildItem -Path afanasy\src\project.cmake\build-win -Recurse -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object FullName
+            throw "afwatch.exe not found anywhere in workspace"
+          }
+
       - name: Upload Windows binaries
         uses: actions/upload-artifact@v4
         with:
           name: afwatch-windows-x64
-          path: afanasy/src/project.cmake/build-win/Release/afwatch.exe
+          path: ${{ env.AFWATCH_EXE }}
           if-no-files-found: error
