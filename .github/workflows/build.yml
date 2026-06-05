@@ -202,5 +202,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: afwatch-windows-x64
-          path: windows/bin/afwatch.exe
+          path: afanasy/windows/bin/afwatch.exe
           if-no-files-found: error
