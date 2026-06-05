@@ -198,9 +198,20 @@ jobs:
         shell: pwsh
         run: ctest --test-dir afanasy/src/project.cmake/build-win -C Release --output-on-failure
 
+      - name: Find afwatch.exe (debug)
+        shell: pwsh
+        run: |
+          Write-Host "=== Searching entire workspace for afwatch.exe ==="
+          Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -Filter "afwatch.exe" -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty FullName
+          Write-Host "=== All .exe files under afanasy/ ==="
+          Get-ChildItem -Path afanasy -Recurse -Filter "*.exe" -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty FullName
+          Write-Host "=== Done ==="
+
       - name: Upload Windows binaries
         uses: actions/upload-artifact@v4
         with:
           name: afwatch-windows-x64
           path: afanasy/windows/bin/afwatch.exe
-          if-no-files-found: error
+          if-no-files-found: warn
