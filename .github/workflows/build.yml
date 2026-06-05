@@ -413,6 +413,10 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "$env:VCPKG_DEFAULT_BINARY_CACHE" | Out-Null
+          $stalePerlExtract = "C:\vcpkg\downloads\tools\perl\5.42.0.1"
+          if (Test-Path $stalePerlExtract) {
+            Remove-Item -Path $stalePerlExtract -Recurse -Force
+          }
           C:\vcpkg\bootstrap-vcpkg.bat -disableMetrics
           C:\vcpkg\vcpkg.exe install libpq:x64-windows libzip:x64-windows
 
