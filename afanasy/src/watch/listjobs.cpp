@@ -963,6 +963,22 @@ bool ListJobs::v_filesReceived( const af::MCTaskUp & i_taskup )
 	return false;
 }
 
+/// Detect a trailing "-N" suffix and return the name with N incremented.
+/// If no suffix is found, append "-1". Used so re-submitted jobs are
+/// distinguishable from the originals in the job list.
+static QString incrementTrailingSuffix(const QString & name)
+{
+	static const QRegularExpression TRAILING_SUFFIX_RE(R"(-(\d+)$)");
+	QRegularExpressionMatch match = TRAILING_SUFFIX_RE.match(name);
+	if( match.hasMatch())
+	{
+		int current_index = match.captured(1).toInt();
+		return name.left(match.capturedStart())
+		       + "-" + QString::number(current_index + 1);
+	}
+	return name + "-1";
+}
+
 /// Find "[fN-M]" in @p name and replace with "[f@p first-@p last]".
 /// If the tag is absent, append it. No regex — plain char scan.
 static QString replaceFrameRangeTag(
@@ -1028,13 +1044,30 @@ void ListJobs::actRenderNewFrameRange()
 		return;
 	}
 
-	// Derive a default job name by replacing the existing [fN-M] frame range tag.
-	// Uses plain string search so QRegExp is not required.
+	// Derive a default job name by replacing the existing [fN-M] frame range tag
+	// and incrementing the trailing -N submission counter so the new job is
+	// distinct from the original in the job list.
 	QString original_job_name = job->getName();
-	QString derived_job_name = replaceFrameRangeTag(
-		original_job_name,
-		first_numeric_block->frame_first,
-		first_numeric_block->frame_last);
+	QString derived_job_name = incrementTrailingSuffix(
+		replaceFrameRangeTag(
+			original_job_name,
+			first_numeric_block->frame_first,
+			first_numeric_block->frame_last));
+
+	// Extract the setup script path from a "-P <path>" argument if present.
+	// Only the Blender service uses this; the row is hidden for other services.
+	static const QRegularExpression SETUP_SCRIPT_RE(
+		R"rx(-P\s+(?:"([^"]+)"|(\S+\.py)))rx");
+	QString current_setup_py_path;
+	QRegularExpressionMatch setup_match =
+		SETUP_SCRIPT_RE.match(first_numeric_block->cmd);
+	const bool has_setup_py_arg = setup_match.hasMatch();
+	if( has_setup_py_arg)
+	{
+		current_setup_py_path = setup_match.captured(1).isEmpty()
+		    ? setup_match.captured(2)
+		    : setup_match.captured(1);
+	}
 
 	// ── Dialog ────────────────────────────────────────────────────────────
 	QDialog dialog(this);
@@ -1050,10 +1083,24 @@ void ListJobs::actRenderNewFrameRange()
 
 	QLineEdit * edit_name = new QLineEdit(derived_job_name, &dialog);
 
+	QSpinBox * spin_frames_per_task = new QSpinBox(&dialog);
+	spin_frames_per_task->setRange(1, 9999999);
+	spin_frames_per_task->setValue(int(first_numeric_block->frame_pertask));
+
+	QLineEdit * edit_setup_py = nullptr;
+	if( has_setup_py_arg)
+	{
+		edit_setup_py = new QLineEdit(current_setup_py_path, &dialog);
+		edit_setup_py->setMinimumWidth(400);
+	}
+
 	QFormLayout * form = new QFormLayout;
-	form->addRow("First Frame:", spin_first);
-	form->addRow("Last Frame:",  spin_last);
-	form->addRow("Job Name:",    edit_name);
+	form->addRow("First Frame:",     spin_first);
+	form->addRow("Last Frame:",      spin_last);
+	form->addRow("Frames Per Task:", spin_frames_per_task);
+	if( edit_setup_py)
+		form->addRow("Setup Script (-P):", edit_setup_py);
+	form->addRow("Job Name:",        edit_name);
 
 	QDialogButtonBox * buttons = new QDialogButtonBox(
 		QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
@@ -1067,13 +1114,23 @@ void ListJobs::actRenderNewFrameRange()
 	if( dialog.exec() != QDialog::Accepted)
 		return;
 
-	const int new_first_frame = spin_first->value();
-	const int new_last_frame  = spin_last->value();
-	const QString new_job_name = edit_name->text().trimmed();
+	const int new_first_frame      = spin_first->value();
+	const int new_last_frame       = spin_last->value();
+	const int new_frames_per_task  = spin_frames_per_task->value();
+	const QString new_job_name     = edit_name->text().trimmed();
+	const QString new_setup_py_path =
+		(edit_setup_py && !edit_setup_py->text().trimmed().isEmpty())
+		    ? edit_setup_py->text().trimmed()
+		    : current_setup_py_path;
 
 	if( new_last_frame < new_first_frame)
 	{
 		displayError("Last frame must be >= first frame.");
+		return;
+	}
+	if( new_frames_per_task < 1)
+	{
+		displayError("Frames per task must be >= 1.");
 		return;
 	}
 	if( new_job_name.isEmpty())
@@ -1123,7 +1180,21 @@ void ListJobs::actRenderNewFrameRange()
 		// Flags carry the numeric bit (bit 0). Must be sent so the server calls setNumeric().
 		str << ",\"flags\":"    << binfo->flags; // block type flags: numeric bit, varcapacity, multihost, etc.
 		str << ",\"service\":\"" << af::strEscape( afqt::qtos( binfo->service))    << "\"";
-		str << ",\"command\":\"" << af::strEscape( afqt::qtos( binfo->cmd))        << "\"";
+
+		// Substitute the setup script path when the user changed it.
+		QString block_cmd = binfo->cmd;
+		if( has_setup_py_arg && new_setup_py_path != current_setup_py_path && binfo->numeric)
+		{
+			QRegularExpressionMatch block_match = SETUP_SCRIPT_RE.match(block_cmd);
+			if( block_match.hasMatch())
+			{
+				block_cmd.replace(
+					block_match.capturedStart(),
+					block_match.capturedLength(),
+					QString(R"(-P "%1")").arg(new_setup_py_path));
+			}
+		}
+		str << ",\"command\":\"" << af::strEscape( afqt::qtos( block_cmd))         << "\"";
 		str << ",\"parser\":\""  << af::strEscape( afqt::qtos( binfo->parser))     << "\"";
 
 		if( false == binfo->wdir.isEmpty())
@@ -1134,7 +1205,7 @@ void ListJobs::actRenderNewFrameRange()
 		{
 			str << ",\"frame_first\":"    << block_frame_first;
 			str << ",\"frame_last\":"     << block_frame_last;
-			str << ",\"frames_per_task\":" << binfo->frame_pertask;
+			str << ",\"frames_per_task\":" << new_frames_per_task;
 			str << ",\"frames_inc\":"     << binfo->frame_inc;
 		}
 
