@@ -260,7 +260,6 @@ function ab_ProcessArtists()
 		{
 			if (null == bm.path)
 			{
-				console.log(JSON.stringify(bm));
 				total_invalid_bookmarks += 1;
 				continue;
 			}
@@ -277,6 +276,7 @@ function ab_ProcessArtists()
 		let artist =  user;
 		artist.projects = [];
 		artist.bm_count = 0;
+		artist.priorities = 0;
 		let projects = bm_CollectProjects(bookmarks);
 		for (let prj of projects)
 		{
@@ -298,7 +298,22 @@ function ab_ProcessArtists()
 
 			for (let sc of prj.scenes)
 				for (let bm of sc.bms)
+				{
 					artist.bm_count += 1;
+
+					if (bm.status == null) continue;
+					if (bm.status.tasks == null) continue;
+					for (let name in bm.status.tasks)
+					{
+						let t = bm.status.tasks[name];
+						if (t.deleted) continue;
+						if (t.artists == null) continue;
+						if (t.artists.indexOf(artist.id) == -1) continue;
+						if (t.priority)
+							artist.priorities += 1;
+					}
+				}
+
 
 			artist.projects.push(prj);
 		}
@@ -452,6 +467,8 @@ function ArtPage(i_el, i_artist)
 		info += '<br>Bookmarks: ' + this.artist.bm_count;
 	else
 		this.elRoot.classList.add('empty');
+	if (this.artist.priorities)
+		info += '<br>Priorities: ' + this.artist.priorities;
 
 	this.elInfo = document.createElement('div');
 	this.elBrief.appendChild(this.elInfo);
@@ -821,6 +838,10 @@ function ArtPagePrj(i_el, i_project, i_artist)
 	this.elBtnCollapse.onclick = function(e){e.currentTarget.m_this.collapse();}
 	this.elBtnCollapse.style.display = 'none';
 
+	this.elPriInfo = document.createElement('div');
+	this.elPanel.appendChild(this.elPriInfo);
+	this.elPriInfo.classList.add('pri_info');
+
 	this.elTitle = document.createElement('div');
 	this.elPanel.appendChild(this.elTitle);
 	this.elTitle.textContent = this.project.name;
@@ -838,10 +859,10 @@ ArtPagePrj.prototype.showStat = function()
 	let prj_bms = [];
 	for (let scene of this.project.scenes)
 		prj_bms = prj_bms.concat(scene.bms);
-
 	prj_bms.sort(ab_CompareBookmarks(this.artist.id));
 
 	let acts = {};
+	let priorities = {};
 
 	for (let bm of prj_bms)
 	{
@@ -861,6 +882,7 @@ ArtPagePrj.prototype.showStat = function()
 			{
 				act.count = 0;
 				act.flags = {};
+				act.priorities = {};
 			}
 
 			act.count += 1;
@@ -872,8 +894,34 @@ ArtPagePrj.prototype.showStat = function()
 					else
 						act.flags[f] = 1;
 
+			if (t.priority)
+			{
+				const p = t.priority;
+
+				if (priorities[p] == null)
+					priorities[p] = 0;
+				priorities[p] += 1;
+
+				if (act.priorities[p] == null)
+					act.priorities[p] = 0;
+				act.priorities[p] += 1;
+			}
+
 			acts[name] = act;
 		}
+	}
+
+	let pri_info = 'Priorities';
+	let p_count = 0;
+	for (let p in priorities)
+	{
+		pri_info += ' ' + p + 'x' + priorities[p];
+		p_count += priorities[p];
+	}
+	pri_info += ' : ' + p_count;
+	if (p_count)
+	{
+		this.elPriInfo.textContent = pri_info;
 	}
 
 	for (let act in acts)
@@ -893,6 +941,22 @@ ArtPagePrj.prototype.showStat = function()
 				let elFlag = st_CreateElFlag(flag, false, (': ' + acts[act].flags[flag]));
 				elAct.appendChild(elFlag);
 			}
+
+		let pri_info = 'Priorities';
+		let p_count = 0;
+		for (let p in acts[act].priorities)
+		{
+			pri_info += ' ' + p + 'x' + acts[act].priorities[p];
+			p_count += acts[act].priorities[p];
+		}
+		pri_info += ' : ' + p_count;
+		if (p_count)
+		{
+			let elPriInfo = document.createElement('div');
+			elAct.appendChild(elPriInfo);
+			elPriInfo.classList.add('pri_info');
+			elPriInfo.textContent = pri_info;
+		}
 	}
 }
 
